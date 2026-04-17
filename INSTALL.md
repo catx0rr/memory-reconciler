@@ -13,6 +13,7 @@ Agent pre-install gate — complete every bullet before touching Step 1:
 - Check the operator's current config and warn them of anything that will change, conflict, or break (existing cron, existing namespace, non-isolated wiki, shared `memory-state.json`, timezone, etc.).
 - Summarize what will be installed as a short bulleted list (skill clone, runtime files, cron job, first run).
 - Ask the operator for explicit approval before executing INSTALL.md; do not proceed until they say yes.
+- If the runtime directories, files are present, review them if they align with the installation
 
 ---
 
