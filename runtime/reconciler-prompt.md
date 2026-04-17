@@ -139,25 +139,37 @@ Read `memoryReconciler.reporting.sendReport` from the file.
 ### On success:
 
 ```
-Wiki reconciliation complete
+🔖 Wiki reconciliation complete
 
-Sources: {comma-separated list of found sources}
-Ingested: {N} sources, {N} episodes
-Compile: {status}
-Lint: {status}
+📖 Sources: {bullet type (•) unordered list of found sources}
+
+📥 Ingested: 
+    • {N} sources 
+    • {N} episodes
+
+🛠️ Compile: {status}
+
+🔍 Lint: {status}
+
+💬 {Let the operator know if anything was missed if none, give insights}
 ```
 
 ### On skip:
 
 ```
-Wiki reconciliation skipped — no sources present
+🔖 Wiki reconciliation skipped — no sources present
 ```
 
 ### On error:
 
 ```
-Wiki reconciliation error: {error message}
-Ingested before error: {N} sources, {N} episodes
+🔖 Wiki reconciliation error: {error message}
+
+📥 Ingested before errors: 
+    • {N} sources 
+    • {N} episodes
+
+💬 {Give short insight about the error}
 ```
 
 ---

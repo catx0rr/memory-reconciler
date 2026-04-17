@@ -241,27 +241,30 @@ python3 $SCRIPTS_DIR/append_memory_log.py \
 Compose and reply with a summary:
 
 ```
-Memory Reconciler — First-Time Bootstrap Complete
+🔖 Memory Reconciler — First-Time Bootstrap Complete
 
-Wiki Configuration:
-  Vault mode: isolated
-  Bridge: disabled
-  URL ingest: disabled
+⚙️ Wiki Configuration:
+    • Vault mode: isolated
+    • Bridge: disabled
+    • URL ingest: disabled
 
-Sources found:
-  MEMORY.md: {present/absent}
-  LTMEMORY.md: {present/absent}
-  PROCEDURES.md: {present/absent}
-  Episodes: {count} files
+📖 Sources found:
+    • MEMORY.md: {present/absent}
+    • LTMEMORY.md: {present/absent}
+    • PROCEDURES.md: {present/absent}
+    • Episodes: {count} files
 
-Reconciliation:
-  Sources ingested: {N}
-  Episodes ingested: {N}
-  Compile: {status}
-  Lint: {status}
+🔧 Reconciliation:
+    • Sources ingested: {N}
+    • Episodes ingested: {N}
 
-Cron: memory-reconciler scheduled at Wednesday 23:00, Sunday 23:00
-Next step: reconciliation will run automatically on schedule.
+🛠️ Compile: {status}
+
+🔍 Lint: {status}
+
+📅 Next step: 
+    • memory-reconciler scheduled at Wednesday 23:00, Sunday 23:00
+    • Memory reconciliation will run automatically on schedule.
 ```
 
 ---
