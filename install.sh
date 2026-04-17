@@ -86,8 +86,10 @@ else
     echo "[init] runtime/memory-reconciler-metadata.json already exists — skipping"
 fi
 
-# Note: Wiki config is applied via 'openclaw config set' at agent setup time,
-# not by this installer. See INSTALL.md Step 3 and references/config-template.md.
+# Note: Wiki config application is a prerequisite handled by memory-wiki setup,
+# not by this installer or the memory-reconciler package. Memory-reconciler only
+# verifies the config at runtime. See INSTALL.md Prerequisites and
+# references/config-template.md for the required config shape.
 
 # ── C. Initialize shared runtime state ──────────────────────────────
 

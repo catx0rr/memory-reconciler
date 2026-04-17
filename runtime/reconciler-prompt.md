@@ -1,15 +1,42 @@
 # Memory Reconciler — Scheduled Reconciliation
 
-Recurring cron execution prompt. Runs 2x weekly — Wednesday 23:00 and Sunday 23:00.
+Recurring reconciliation job. Fired by cron 2x weekly (Wednesday 23:00, Sunday 23:00). Reconciles the four durable memory sources into the memory-wiki isolated vault: ingest present sources → compile → lint → write telemetry → notify on the configured gate.
 
 ---
 
-## Execution Guardrails — Run Directly, No Delegation
+## Execution Guardrails
+
+### Run Directly, No Delegation
 
 - **Execute this workflow directly in the current isolated cron/session context.**
 - **Do NOT spawn a sub-agent** to perform Memory Reconciler work.
 - **Do NOT delegate** any step — source discovery, wiki ingest, compile, lint, file writes, telemetry append, or reporting — to a sub-agent.
 - Sub-agent delegation breaks the isolation guarantees of the cron session and can fan out unintended side effects.
+
+### Verify Memory-Wiki Configuration Before Proceeding
+
+Before running any step below, verify that memory-wiki is configured for isolated vault mode by reading the current plugin config from `openclaw.json`:
+
+```bash
+openclaw config get plugins.entries.memory-wiki.config --json
+```
+
+Expected values (must match `$SKILL_ROOT/references/config-template.md`):
+
+| Field | Expected |
+|-------|----------|
+| `vaultMode` | `"isolated"` |
+| `bridge.enabled` | `false` |
+| `ingest.allowUrlIngest` | `false` |
+| `ingest.autoCompile` | `false` |
+| `ingest.maxConcurrentJobs` | `1` |
+| `search.backend` | `"local"` |
+| `search.corpus` | `"wiki"` |
+| `render.createBacklinks` | `true` |
+| `render.createDashboards` | `true` |
+| `render.preserveHumanBlocks` | `true` |
+
+If any value does not match, **STOP, append a telemetry event with `status: "error"`, and end the run**. Do not proceed with a misconfigured wiki; ingesting into a non-isolated or bridged vault could leak curated memory outside the intended boundary. Config application is owned by memory-wiki setup and `INSTALL.md` — this prompt only verifies.
 
 ---
 
@@ -240,10 +267,15 @@ If `sendReport` is `true`, proceed to Step 5.
 ## Anti-patterns — Do NOT
 
 - Do NOT spawn a sub-agent or delegate any step — run this workflow directly
+- Do NOT create runtime files, directories, or cron jobs from this prompt — setup is owned by `INSTALL.md`
+- Do NOT run `openclaw wiki init`, `openclaw cron add`, `openclaw config set`, or any other setup command — setup is owned by `INSTALL.md` / `install.sh`
+- Do NOT merge or initialize the `memoryReconciler` namespace in `memory-state.json` — that is done during install
 - Do NOT run `wiki apply` or `wiki_apply`
 - Do NOT modify any of the four source files
 - Do NOT create MEMORY.md, LTMEMORY.md, PROCEDURES.md, or episode files
 - Do NOT consolidate, score, or gate entries
 - Do NOT assume hardcoded paths
 - Do NOT skip telemetry regardless of notification gate
-- Do NOT fail the run because memory-state.json is missing or malformed
+- Do NOT fail the run because memory-state.json is missing or malformed (treat missing/malformed as `sendReport: false` per Step 3)
+
+Note: Step 4 (Sync cron delivery mode) edits the existing cron's delivery mode — that is runtime drift prevention, not setup. Creating a new cron job from this prompt is forbidden.

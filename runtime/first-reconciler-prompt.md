@@ -1,6 +1,6 @@
-# Memory Reconciler — First-Time Bootstrap
+# Memory Reconciler — First-Time Job (Initial Ingestion)
 
-Run this ONCE immediately after installing memory-reconciler. This prompt sets up the isolated wiki vault, initializes runtime state, creates the cron job, and runs the first reconciliation.
+First reconciliation job, fired once immediately after install. Runs the same ingest → compile → lint flow as the recurring job, but tagged with `mode: first-reconciliation` in telemetry and reported inline to the operator's current session (not isolated) so the first run is visible live.
 
 ---
 
@@ -8,10 +8,10 @@ Run this ONCE immediately after installing memory-reconciler. This prompt sets u
 
 ### Run Directly, No Delegation
 
-- **Execute this bootstrap workflow directly in the current session.**
-- **Do NOT spawn a sub-agent** to perform any Memory Reconciler setup or first-run step.
-- **Do NOT delegate** config application, runtime file creation, namespace merging, cron creation, wiki init, the first reconciliation run, telemetry append, or reporting to a sub-agent.
-- Sub-agent delegation breaks the isolation guarantees of the current setup context and can fan out unintended side effects.
+- **Execute this workflow directly in the current session.**
+- **Do NOT spawn a sub-agent** to perform any step of this job.
+- **Do NOT delegate** source discovery, wiki ingest, compile, lint, telemetry append, or reporting to a sub-agent.
+- Sub-agent delegation breaks the isolation guarantees of the current session and can fan out unintended side effects. This job must run end-to-end in the current context.
 
 ### Verify Memory-Wiki Configuration Before Proceeding
 
@@ -36,7 +36,7 @@ Expected values (must match `$SKILL_ROOT/references/config-template.md`):
 | `render.createDashboards` | `true` |
 | `render.preserveHumanBlocks` | `true` |
 
-If any value does not match, **STOP and inform the operator**. Config application is owned by `INSTALL.md` / `install.sh` — this prompt only verifies. Do not proceed with a misconfigured wiki; ingesting into a non-isolated or bridged vault could leak curated memory outside the intended boundary.
+If any value does not match, **STOP and inform the operator**. Config application is owned by memory-wiki setup and `INSTALL.md` — this prompt only verifies. Do not proceed with a misconfigured wiki; ingesting into a non-isolated or bridged vault could leak curated memory outside the intended boundary.
 
 ---
 
@@ -56,182 +56,70 @@ TELEMETRY_ROOT = resolve by precedence:
 
 ---
 
-## Step 1: Verify memory-wiki is enabled
-
-Check that memory-wiki is installed and available:
-
-```bash
-openclaw wiki status
-```
-
-If the command fails or memory-wiki is not installed, STOP and inform the operator:
-
-> "memory-wiki is not installed or not enabled. Install memory-wiki before proceeding with memory-reconciler setup."
-
-Do not continue without a working memory-wiki installation.
-
----
-
-## Step 2: Initialize runtime metadata
-
-Create `$WORKSPACE_ROOT/runtime/memory-reconciler-metadata.json` if it does not exist:
-
-```json
-{
-  "version": "1.0.0",
-  "lastRun": null,
-  "lastRunUtc": null,
-  "lastStatus": null,
-  "sourcesFound": [],
-  "sourcesIngested": 0,
-  "episodesIngested": 0,
-  "compileStatus": null,
-  "lintStatus": null,
-  "lastError": null
-}
-```
-
-If the file already exists, skip — do not overwrite.
-
----
-
-## Step 3: Merge memoryReconciler namespace into memory-state.json
-
-Read `$WORKSPACE_ROOT/runtime/memory-state.json`.
-
-**Default reporting is enabled** so that the Memory Reconciler report is delivered back to the operator via the last-used channel. The operator can disable it later by flipping `sendReport` to `false`.
-
-**If the file does not exist**, create it:
-
-```json
-{
-  "memoryReconciler": {
-    "reporting": {
-      "sendReport": true,
-      "delivery": {
-        "channel": "last",
-        "to": null
-      }
-    }
-  }
-}
-```
-
-**If the file exists but does not contain a `memoryReconciler` key**, merge the namespace (with the defaults above):
-
-```python
-import json
-with open(state_path, 'r') as f:
-    data = json.load(f)
-data['memoryReconciler'] = {
-    'reporting': {
-        'sendReport': True,
-        'delivery': {'channel': 'last', 'to': None}
-    }
-}
-with open(state_path, 'w') as f:
-    json.dump(data, f, indent=2)
-```
-
-**If the `memoryReconciler` key already exists**, skip — do not overwrite existing reporting state or operator routing. An operator who has already configured `sendReport`, `delivery.channel`, or `delivery.to` keeps their values.
-
-**Preserve all other namespaces unconditionally.** Never use `cat >` to overwrite this shared file.
-
----
-
-## Step 4: Verify four-source seam
-
-Check the existence of each source in the workspace:
-
-| Source | Path | Present? |
-|--------|------|----------|
-| Active durable memory | `$WORKSPACE_ROOT/MEMORY.md` | |
-| Reflective memory | `$WORKSPACE_ROOT/LTMEMORY.md` | |
-| Procedural memory | `$WORKSPACE_ROOT/PROCEDURES.md` | |
-| Episodes | `$WORKSPACE_ROOT/memory/episodes/*.md` | (count) |
-
-Report which sources are present. Missing sources are **not errors** — they may appear later as other packages run. The reconciler will skip missing sources cleanly at runtime.
-
----
-
-## Step 5: Create cron job
-
-Create the recurring cron job. Check for an existing job first (idempotency):
-
-```bash
-openclaw cron list --json
-```
-
-If a job named `memory-reconciler` already exists, skip creation.
-
-Otherwise, create a cron job:
-
-```
-name: "memory-reconciler"
-schedule: { kind: "cron", expr: "0 23 * * 3,0", tz: "IANA timezone from system" }
-payload: {
-  kind: "agentTurn",
-  message: "Run memory reconciliation.\n\nRead <RESOLVED_SKILL_ROOT>/runtime/reconciler-prompt.md and follow every step strictly.\n\nWorking directory: <RESOLVED_WORKSPACE_PATH>",
-  timeoutSeconds: 1200,
-  
-}
-sessionTarget: "isolated"
-delivery: { mode: "announce", channel: <last channel the operator used>, to: <the operator specific id of last channel used> }
-```
-
-Replace `<RESOLVED_SKILL_ROOT>` and `<RESOLVED_WORKSPACE_PATH>` with fully resolved absolute paths. No `~`, no `$HOME`, no placeholders in the created cron payload.
-
----
-
-## Step 6: Initialize wiki vault
-
-Initialize the memory-wiki vault before the first reconciliation run:
-
-```bash
-openclaw wiki init
-```
-
-This ensures the wiki storage is ready to accept ingested content.
-
----
-
-## Step 7: Run first reconciliation [SCRIPT]
-
-Run the first reconciliation cycle:
+## Step 1: Run first reconciliation [SCRIPT]
 
 ```bash
 python3 $SCRIPTS_DIR/reconcile.py --workspace $WORKSPACE_ROOT
 ```
 
 Read the JSON output. Record:
-- `status` — ok, skipped, or error
-- `sources_found` — which sources were present
-- `sources_ingested` — how many were successfully ingested
-- `episodes_ingested` — how many episode files were ingested
+
+- `status` — `"ok"`, `"skipped"`, or `"error"`
+- `sources_found` — list of discovered source files
+- `sources_ingested` — count of successfully ingested root sources
+- `episodes_found` — count of episode files found
+- `episodes_ingested` — count of episode files successfully ingested
 - `compile.status` — compile result
 - `lint.status` — lint result
+- `ingest_errors` — list of any ingest failures (partial failures are ok)
+- `error` — error message if overall status is `"error"`
 
 ---
 
-## Step 8: Append telemetry [SCRIPT]
+## Step 2: Append telemetry [SCRIPT]
+
+Always write telemetry regardless of run outcome.
+
+### On success (`status == "ok"`):
 
 ```bash
 python3 $SCRIPTS_DIR/append_memory_log.py \
   --telemetry-dir $TELEMETRY_ROOT \
-  --status <status from step 7> \
-  --event <run_completed or run_skipped or run_failed> \
+  --status ok \
+  --event run_completed \
   --mode first-reconciliation \
-  --details-json '<JSON summary from step 7>'
+  --details-json '{"sources_found": <list>, "sources_ingested": <N>, "episodes_found": <N>, "episodes_ingested": <N>, "compile_status": "<status>", "lint_status": "<status>"}'
+```
+
+### On skip (`status == "skipped"`):
+
+```bash
+python3 $SCRIPTS_DIR/append_memory_log.py \
+  --telemetry-dir $TELEMETRY_ROOT \
+  --status skipped \
+  --event run_skipped \
+  --mode first-reconciliation
+```
+
+### On error (`status == "error"`):
+
+```bash
+python3 $SCRIPTS_DIR/append_memory_log.py \
+  --telemetry-dir $TELEMETRY_ROOT \
+  --status error \
+  --event run_failed \
+  --mode first-reconciliation \
+  --error "<error message from reconcile output>"
 ```
 
 ---
 
-## Step 9: Report results
+## Step 3: Report results
 
-Compose and reply with a summary:
+Since this runs in the operator's current session, reply inline with a summary — do not use chat notification (that is handled by the recurring `reconciler-prompt.md` via the `sendReport` gate).
 
 ```
-🔖 Memory Reconciler — First-Time Bootstrap Complete
+🔖 Memory Reconciler — First-Time Run Complete
 
 ⚙️ Wiki Configuration:
     • Vault mode: isolated
@@ -252,7 +140,7 @@ Compose and reply with a summary:
 
 🔍 Lint: {status}
 
-📅 Next step: 
+📅 Next step:
     • memory-reconciler scheduled at Wednesday 23:00, Sunday 23:00
     • Memory reconciliation will run automatically on schedule.
 ```
@@ -264,9 +152,12 @@ Populate `⚙️ Wiki Configuration` from the values read in the guardrail verif
 ## Anti-patterns — Do NOT
 
 - Do NOT spawn a sub-agent or delegate any step — run this workflow directly
+- Do NOT create runtime files, directories, or cron jobs from this prompt — setup is owned by `INSTALL.md`
+- Do NOT run `openclaw wiki init`, `openclaw cron add`, `openclaw config set`, or any other setup command — setup is owned by `INSTALL.md` / `install.sh`
+- Do NOT merge or initialize the `memoryReconciler` namespace in `memory-state.json` — that is done during install
 - Do NOT run `wiki apply` or `wiki_apply`
-- Do NOT modify any of the four source files
+- Do NOT modify any of the four source files (MEMORY.md, LTMEMORY.md, PROCEDURES.md, episodes)
 - Do NOT create MEMORY.md, LTMEMORY.md, PROCEDURES.md, or episode files
 - Do NOT consolidate, score, or gate entries
 - Do NOT assume hardcoded paths — resolve SKILL_ROOT, WORKSPACE_ROOT, TELEMETRY_ROOT dynamically
-- Do NOT skip telemetry even when notification is silent
+- Do NOT skip telemetry

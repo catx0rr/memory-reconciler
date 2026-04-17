@@ -2,7 +2,7 @@
 
 Defines the exact memory-wiki configuration shape for isolated vault mode.
 
-**Important:** This file is a **reference template**, not the live config source. The live configuration is applied through OpenClaw's plugin config system at install time via `openclaw config set plugins.entries.memory-wiki.config`. This file documents the expected shape for verification and operator reference.
+**Important:** This file is a **reference template**, not the live config source. Wiki config application is a prerequisite handled by memory-wiki setup — **not** by the memory-reconciler package. Memory-reconciler only verifies the config at runtime (see the "Verify Memory-Wiki Configuration" guardrail in both runtime prompts). This file documents the expected shape and provides the `openclaw config set` commands the operator can use to apply it.
 
 ---
 
@@ -52,7 +52,7 @@ Defines the exact memory-wiki configuration shape for isolated vault mode.
 
 ## Applying the Configuration
 
-At install time, the agent applies these settings through OpenClaw's plugin config system. The exact commands:
+Config application is a **prerequisite** handled by the operator during memory-wiki setup — not by the memory-reconciler package. The operator can use these `openclaw config set` commands to apply the required values:
 
 ```bash
 openclaw config set plugins.entries.memory-wiki.config.vaultMode '"isolated"' --strict-json

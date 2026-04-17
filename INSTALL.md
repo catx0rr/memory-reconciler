@@ -4,6 +4,18 @@ Single authoritative guide for installing, configuring, and bootstrapping the me
 
 ---
 
+## Before Installing
+
+Agent pre-install gate — complete every bullet before touching Step 1:
+
+- Read this entire document first; do not start installing immediately.
+- Give the operator a 2-line description of what memory-reconciler does and why they'd want it.
+- Check the operator's current config and warn them of anything that will change, conflict, or break (existing cron, existing namespace, non-isolated wiki, shared `memory-state.json`, timezone, etc.).
+- Summarize what will be installed as a short bulleted list (skill clone, runtime files, cron job, first run).
+- Ask the operator for explicit approval before executing INSTALL.md; do not proceed until they say yes.
+
+---
+
 ## Path Terminology
 
 | Variable | Meaning |
@@ -20,7 +32,7 @@ Single authoritative guide for installing, configuring, and bootstrapping the me
 - Python 3.9+
 - Git
 - OpenClaw installed with a workspace
-- **memory-wiki** installed and enabled
+- **memory-wiki** installed, enabled, and configured for isolated vault mode — see `$SKILL_ROOT/references/config-template.md` for the required field values and the `openclaw config set` commands. Wiki config application is not owned by this package; memory-reconciler only verifies the config at runtime.
 
 ---
 
@@ -57,34 +69,7 @@ openclaw config set skills.load.extraDirs "[
 
 ---
 
-## Step 3: Apply Isolated Vault Mode Settings
-
-Apply the memory-wiki isolated vault configuration through OpenClaw's plugin config system. These settings ensure the wiki operates in its own namespace without external dependencies.
-
-```bash
-openclaw config set plugins.entries.memory-wiki.config.vaultMode '"isolated"' --strict-json
-openclaw config set plugins.entries.memory-wiki.config.bridge.enabled 'false' --strict-json
-openclaw config set plugins.entries.memory-wiki.config.ingest.allowUrlIngest 'false' --strict-json
-openclaw config set plugins.entries.memory-wiki.config.ingest.autoCompile 'false' --strict-json
-openclaw config set plugins.entries.memory-wiki.config.ingest.maxConcurrentJobs '1' --strict-json
-openclaw config set plugins.entries.memory-wiki.config.search.backend '"local"' --strict-json
-openclaw config set plugins.entries.memory-wiki.config.search.corpus '"wiki"' --strict-json
-openclaw config set plugins.entries.memory-wiki.config.render.createBacklinks 'true' --strict-json
-openclaw config set plugins.entries.memory-wiki.config.render.createDashboards 'true' --strict-json
-openclaw config set plugins.entries.memory-wiki.config.render.preserveHumanBlocks 'true' --strict-json
-```
-
-### Verify applied config
-
-```bash
-openclaw config get plugins.entries.memory-wiki.config --json
-```
-
-Compare against `$SKILL_ROOT/references/config-template.md`. All fields must match.
-
----
-
-## Step 4: Initialize Directories and Files
+## Step 3: Initialize Directories and Files
 
 If the operator ran `install.sh`, directories and runtime files may already exist. Only create what is missing.
 
@@ -141,7 +126,7 @@ If the `memoryReconciler` key already exists, **skip** — do not overwrite exis
 
 ---
 
-## Step 5: Verify Wiki Tools
+## Step 4: Verify Wiki Tools
 
 Verify the required wiki commands are available:
 
@@ -153,7 +138,7 @@ openclaw wiki lint --help
 
 All three must be available. If any command is missing, memory-wiki may need to be updated.
 
-### Step 5a: Initialize Wiki Vault
+### Step 4a: Initialize Wiki Vault
 
 Initialize the wiki vault to ensure storage is ready:
 
@@ -163,11 +148,11 @@ openclaw wiki init
 
 ---
 
-## Step 6: Resolve Skill Path
+## Step 5: Resolve Skill Path
 
 Before creating the cron, resolve the actual installed path of the memory-reconciler skill so the cron payload uses an absolute path — not a hardcoded relative one.
 
-### 6a. Try standard skill roots first
+### 5a. Try standard skill roots first
 
 ```bash
 for root in \
@@ -183,7 +168,7 @@ do
 done
 ```
 
-### 6b. If not found, check configured `extraDirs`
+### 5b. If not found, check configured `extraDirs`
 
 ```bash
 if [ -z "${SKILL_ROOT:-}" ]; then
@@ -196,7 +181,7 @@ if [ -z "${SKILL_ROOT:-}" ]; then
 fi
 ```
 
-### 6c. Fail if still unresolved
+### 5c. Fail if still unresolved
 
 ```bash
 if [ -z "${SKILL_ROOT:-}" ] || [ ! -f "$SKILL_ROOT/runtime/reconciler-prompt.md" ]; then
@@ -210,21 +195,23 @@ echo "Using SKILL_ROOT=$SKILL_ROOT"
 
 ---
 
-## Step 7: Create Cron Job
+## Step 6: Create Cron Job
 
 Runs 2x weekly — Wednesday 23:00 and Sunday 23:00 (`0 23 * * 3,0`). The reconciler is a heavier batch job (ingest → compile → lint) and does not need near-real-time freshness.
 
 Use the resolved `$SKILL_ROOT` to construct the absolute path in the cron message:
 
-```bash
-openclaw cron add \
-  --name "memory-reconciler" \
-  --cron "0 23 * * 3,0" \
-  --tz "<timezone>" \
-  --session isolated \
-  --no-deliver \
-  --timeout-seconds 1200 \
-  --message "Run memory reconciliation.\n\nRead <RESOLVED_SKILL_ROOT>/runtime/reconciler-prompt.md and follow every step strictly.\n\nWorking directory: <RESOLVED_WORKSPACE_PATH>"
+```
+name: "memory-reconciler"
+schedule: { kind: "cron", expr: "0 23 * * 3,0", tz: "IANA timezone from system" }
+payload: {
+  kind: "agentTurn",
+  message: "Run memory reconciliation.\n\nRead <RESOLVED_SKILL_ROOT>/runtime/reconciler-prompt.md and follow every step strictly.\n\nWorking directory: <RESOLVED_WORKSPACE_PATH>",
+  timeoutSeconds: 1200,
+  
+}
+sessionTarget: "isolated"
+delivery: { mode: "announce", channel: <last channel the operator used>, to: <the operator specific id of last channel used> }
 ```
 
 Replace `<RESOLVED_SKILL_ROOT>` and `<RESOLVED_WORKSPACE_PATH>` with fully resolved absolute paths. No `~`, no `$HOME`, no placeholders in the created cron payload.
@@ -233,7 +220,7 @@ Check for existing job first: `openclaw cron list --json`. If `memory-reconciler
 
 ---
 
-## Step 8: Run First Reconciliation
+## Step 7: Run First Reconciliation
 
 After setup is complete, DO NOT wait for the cron schedule. Run the first reconciliation immediately:
 
@@ -249,14 +236,14 @@ After setup, two prompts govern runtime behavior:
 
 | Prompt | Role | When |
 |--------|------|------|
-| `runtime/first-reconciler-prompt.md` | One-time bootstrap | Run once during initial setup (Step 8) |
+| `runtime/first-reconciler-prompt.md` | One-time bootstrap | Run once during initial setup (Step 7) |
 | `runtime/reconciler-prompt.md` | Recurring cron executor | Fired by cron 2x weekly after setup |
 
 The cron job always points to `runtime/reconciler-prompt.md`. The first-reconciler prompt is a one-time run.
 
 ---
 
-## Step 9: Verify
+## Step 8: Verify
 
 - [ ] memory-wiki is installed and enabled
 - [ ] Wiki config is set to isolated vault mode (`vaultMode: "isolated"`)
@@ -292,7 +279,7 @@ memory-reconciler does not own:
 
 ---
 
-## Step 10: Cleanup
+## Step 9: Cleanup
 
 Remove non-runtime files from the installed skill directory:
 - [ ] `.git`
@@ -306,6 +293,6 @@ Remove non-runtime files from the installed skill directory:
 - The install location of the skill is **operator-chosen**
 - Prompts **discover the skill location dynamically** at runtime
 - No external dependencies beyond Python 3.9+ and OpenClaw with memory-wiki
-- Wiki config is applied through OpenClaw's plugin config system, not a package-local file
-- `references/config-template.md` is a documented template for verification reference
+- Wiki config application is a prerequisite handled outside this install (by memory-wiki setup). This package only **verifies** the config at runtime — it does not apply it.
+- `references/config-template.md` documents the expected config shape for operator verification reference
 - Telemetry surfaces are defined in `references/runtime-templates.md`
