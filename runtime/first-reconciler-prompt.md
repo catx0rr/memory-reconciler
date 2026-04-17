@@ -2,6 +2,17 @@
 
 Run this ONCE immediately after installing memory-reconciler. This prompt sets up the isolated wiki vault, initializes runtime state, creates the cron job, and runs the first reconciliation.
 
+---
+
+## Execution Guardrails — Run Directly, No Delegation
+
+- **Execute this bootstrap workflow directly in the current session.**
+- **Do NOT spawn a sub-agent** to perform any Memory Reconciler setup or first-run step.
+- **Do NOT delegate** config application, runtime file creation, namespace merging, cron creation, wiki init, the first reconciliation run, telemetry append, or reporting to a sub-agent.
+- Sub-agent delegation breaks the isolation guarantees of the current setup context and can fan out unintended side effects. This job must run end-to-end in the current context.
+
+---
+
 ## Path Resolution
 
 Resolve these roots before any execution. Do not hardcode paths.
@@ -96,9 +107,11 @@ If the file already exists, skip — do not overwrite.
 
 ---
 
-## Step 4: Merge memoryReconciler namespace into harness-state.json
+## Step 4: Merge memoryReconciler namespace into memory-state.json
 
-Read `$WORKSPACE_ROOT/runtime/harness-state.json`.
+Read `$WORKSPACE_ROOT/runtime/memory-state.json`.
+
+**Default reporting is enabled** so that the Memory Reconciler report is delivered back to the operator via the last-used channel. The operator can disable it later by flipping `sendReport` to `false`.
 
 **If the file does not exist**, create it:
 
@@ -106,7 +119,7 @@ Read `$WORKSPACE_ROOT/runtime/harness-state.json`.
 {
   "memoryReconciler": {
     "reporting": {
-      "sendReport": false,
+      "sendReport": true,
       "delivery": {
         "channel": "last",
         "to": null
@@ -116,23 +129,23 @@ Read `$WORKSPACE_ROOT/runtime/harness-state.json`.
 }
 ```
 
-**If the file exists but does not contain a `memoryReconciler` key**, merge the namespace:
+**If the file exists but does not contain a `memoryReconciler` key**, merge the namespace (with the defaults above):
 
 ```python
 import json
-with open(harness_path, 'r') as f:
+with open(state_path, 'r') as f:
     data = json.load(f)
 data['memoryReconciler'] = {
     'reporting': {
-        'sendReport': False,
+        'sendReport': True,
         'delivery': {'channel': 'last', 'to': None}
     }
 }
-with open(harness_path, 'w') as f:
+with open(state_path, 'w') as f:
     json.dump(data, f, indent=2)
 ```
 
-**If the `memoryReconciler` key already exists**, skip — do not overwrite existing reporting state.
+**If the `memoryReconciler` key already exists**, skip — do not overwrite existing reporting state or operator routing. An operator who has already configured `sendReport`, `delivery.channel`, or `delivery.to` keeps their values.
 
 **Preserve all other namespaces unconditionally.** Never use `cat >` to overwrite this shared file.
 
@@ -255,6 +268,7 @@ Next step: reconciliation will run automatically on schedule.
 
 ## Anti-patterns — Do NOT
 
+- Do NOT spawn a sub-agent or delegate any step — run this workflow directly
 - Do NOT run `wiki apply` or `wiki_apply`
 - Do NOT modify any of the four source files
 - Do NOT create MEMORY.md, LTMEMORY.md, PROCEDURES.md, or episode files

@@ -115,15 +115,17 @@ Create `$WORKSPACE_ROOT/runtime/memory-reconciler-metadata.json` if it does not 
 
 ### Initialize Shared Runtime State
 
-Ensure `$WORKSPACE_ROOT/runtime/harness-state.json` exists and contains the `memoryReconciler` reporting namespace. This is a shared file — do not overwrite it. Merge the namespace if the file already exists.
+Ensure `$WORKSPACE_ROOT/runtime/memory-state.json` exists and contains the `memoryReconciler` reporting namespace. This is a shared file — do not overwrite it. Merge the namespace if the file already exists.
 
-If `$WORKSPACE_ROOT/runtime/harness-state.json` does not exist, create it with:
+**Default reporting is enabled.** When initializing the `memoryReconciler` reporting namespace, `sendReport` is set to `true` so that the Memory Reconciler report is sent back to the operator via the last-used channel. This is intentional — the reconciler's output (compile/lint results, contradiction dashboards) is the operator's primary signal that hygiene is running. The operator can disable it later by flipping `sendReport` to `false`.
+
+If `$WORKSPACE_ROOT/runtime/memory-state.json` does not exist, create it with:
 
 ```json
 {
   "memoryReconciler": {
     "reporting": {
-      "sendReport": false,
+      "sendReport": true,
       "delivery": {
         "channel": "last",
         "to": null
@@ -133,9 +135,9 @@ If `$WORKSPACE_ROOT/runtime/harness-state.json` does not exist, create it with:
 }
 ```
 
-If `$WORKSPACE_ROOT/runtime/harness-state.json` already exists but does not contain a `memoryReconciler` key, merge the `memoryReconciler` namespace into the existing file. Preserve all other namespaces unconditionally. Do not use `cat >` to overwrite.
+If `$WORKSPACE_ROOT/runtime/memory-state.json` already exists but does not contain a `memoryReconciler` key, merge the `memoryReconciler` namespace (with the defaults above) into the existing file. Preserve all other namespaces unconditionally. Do not use `cat >` to overwrite.
 
-If the `memoryReconciler` key already exists, skip — do not overwrite existing reporting state.
+If the `memoryReconciler` key already exists, **skip** — do not overwrite existing reporting state or operator routing. An operator who has already configured `sendReport`, `delivery.channel`, or `delivery.to` keeps their values.
 
 ---
 
@@ -261,7 +263,7 @@ The cron job always points to `runtime/reconciler-prompt.md`. The first-reconcil
 - [ ] Wiki vault initialized (`openclaw wiki init`)
 - [ ] Cron job `memory-reconciler` created and enabled
 - [ ] `runtime/memory-reconciler-metadata.json` exists
-- [ ] `runtime/harness-state.json` contains `memoryReconciler` namespace
+- [ ] `runtime/memory-state.json` contains `memoryReconciler` namespace
 - [ ] First reconciliation has run successfully
 - [ ] Scripts compile: `python3 -m py_compile $SKILL_ROOT/scripts/reconcile.py`
 - [ ] Scripts compile: `python3 -m py_compile $SKILL_ROOT/scripts/status.py`

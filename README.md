@@ -83,4 +83,4 @@ Tell your agent to read `INSTALL.md`:
 | `SKILL.md` | Agent | Manual-use skill — operator-triggered reconciliation |
 | `references/source-contract.md` | Agent/operator | Four-source seam definition, exclusion list, non-goals |
 | `references/config-template.md` | Agent/operator | Wiki isolated vault config shape, `openclaw config set` commands |
-| `references/runtime-templates.md` | Agent/operator | Telemetry schema, metadata format, path model, harness-state namespace |
+| `references/runtime-templates.md` | Agent/operator | Telemetry schema, metadata format, path model, memory-state namespace |

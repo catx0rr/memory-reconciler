@@ -4,6 +4,15 @@ Recurring cron execution prompt. Runs 2x weekly — Wednesday 23:00 and Sunday 2
 
 ---
 
+## Execution Guardrails — Run Directly, No Delegation
+
+- **Execute this workflow directly in the current isolated cron/session context.**
+- **Do NOT spawn a sub-agent** to perform Memory Reconciler work.
+- **Do NOT delegate** any step — source discovery, wiki ingest, compile, lint, file writes, telemetry append, or reporting — to a sub-agent.
+- Sub-agent delegation breaks the isolation guarantees of the cron session and can fan out unintended side effects. This job must run end-to-end in the current context.
+
+---
+
 ## Canonical Source Seam
 
 This package ingests **only** these four source types:
@@ -109,14 +118,14 @@ python3 $SCRIPTS_DIR/append_memory_log.py \
 Read the shared runtime state to determine whether chat notification should be sent:
 
 ```
-HARNESS_STATE = $WORKSPACE_ROOT/runtime/harness-state.json
+MEMORY_STATE = $WORKSPACE_ROOT/runtime/memory-state.json
 ```
 
 Read `memoryReconciler.reporting.sendReport` from the file.
 
 **Rules:**
-- If `harness-state.json` is missing → default `sendReport` to `false`
-- If `harness-state.json` is unreadable or malformed → default `sendReport` to `false`
+- If `memory-state.json` is missing → default `sendReport` to `false`
+- If `memory-state.json` is unreadable or malformed → default `sendReport` to `false`
 - If `memoryReconciler.reporting` field is absent → default `sendReport` to `false`
 - If `sendReport` is `false` → skip chat notification, end run normally
 - If `sendReport` is `true` → proceed with notification (Step 4)
@@ -155,10 +164,11 @@ Ingested before error: {N} sources, {N} episodes
 
 ## Anti-patterns — Do NOT
 
+- Do NOT spawn a sub-agent or delegate any step — run this workflow directly
 - Do NOT run `wiki apply` or `wiki_apply`
 - Do NOT modify any of the four source files
 - Do NOT create MEMORY.md, LTMEMORY.md, PROCEDURES.md, or episode files
 - Do NOT consolidate, score, or gate entries
 - Do NOT assume hardcoded paths
 - Do NOT skip telemetry regardless of notification gate
-- Do NOT fail the run because harness-state.json is missing or malformed
+- Do NOT fail the run because memory-state.json is missing or malformed

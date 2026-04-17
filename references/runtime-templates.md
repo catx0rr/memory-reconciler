@@ -173,18 +173,20 @@ python3 $SCRIPTS_DIR/append_memory_log.py \
 ### Target
 
 ```
-$WORKSPACE_ROOT/runtime/harness-state.json
+$WORKSPACE_ROOT/runtime/memory-state.json
 ```
 
 Shared across all packages. The memory-reconciler uses the `memoryReconciler` namespace.
 
 ### Namespace Schema
 
+Default at initialization — `sendReport: true` so the Memory Reconciler report is delivered back to the operator via the last-used channel:
+
 ```json
 {
   "memoryReconciler": {
     "reporting": {
-      "sendReport": false,
+      "sendReport": true,
       "delivery": {
         "channel": "last",
         "to": null
@@ -196,20 +198,20 @@ Shared across all packages. The memory-reconciler uses the `memoryReconciler` na
 
 ### Merge Rules
 
-- **Create** if file missing — initialize with the `memoryReconciler` namespace
-- **Merge** if file exists but `memoryReconciler` key absent — add the namespace
-- **Skip** if `memoryReconciler` key already present — do not overwrite
+- **Create** if file missing — initialize with the `memoryReconciler` namespace (defaults above)
+- **Merge** if file exists but `memoryReconciler` key absent — add the namespace with the defaults above
+- **Skip** if `memoryReconciler` key already present — do not overwrite existing values
 - **Preserve** all other namespaces unconditionally
 - Never use `cat >` to overwrite this shared file
 
 ### Notification Gate
 
-The `memoryReconciler.reporting.sendReport` field controls chat notification eligibility:
+The `memoryReconciler.reporting.sendReport` field controls chat notification eligibility at runtime:
 
-- `false` (default) → skip chat notification, end run silently
-- `true` → send notification after successful run
+- `true` (init default) → send notification after successful run
+- `false` → skip chat notification, end run silently
 
-If `harness-state.json` is missing, unreadable, or malformed: default `sendReport` to `false`. Never fail a run solely because the reporting state is absent or malformed.
+**Fail-closed read defaults:** If `memory-state.json` is missing, unreadable, or malformed at read time, treat `sendReport` as `false` for that run. This is a read-time safety guard, not the init default. Never fail a run solely because the reporting state is absent or malformed.
 
 ---
 
@@ -220,7 +222,7 @@ At install time, the following artifacts are created:
 | Artifact | Created By | Notes |
 |----------|-----------|-------|
 | `runtime/memory-reconciler-metadata.json` | `install.sh` or `INSTALL.md` Step 4 | Empty metadata with null fields |
-| `harness-state.json` (memoryReconciler namespace) | `install.sh` or `INSTALL.md` Step 4 | Merge-not-overwrite |
+| `memory-state.json` (memoryReconciler namespace) | `install.sh` or `INSTALL.md` Step 4 | Merge-not-overwrite |
 | Wiki isolated vault config | `INSTALL.md` Step 3 / `first-reconciler-prompt.md` Step 2 | Applied via `openclaw config set` |
 
 The four source files (MEMORY.md, LTMEMORY.md, PROCEDURES.md, episodes) are **never created** by this package. They are consumed if present.

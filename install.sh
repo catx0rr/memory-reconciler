@@ -91,15 +91,15 @@ fi
 
 # ── C. Initialize shared runtime state ──────────────────────────────
 
-HARNESS="$WORKSPACE/runtime/harness-state.json"
+MEM_STATE="$WORKSPACE/runtime/memory-state.json"
 
-if [ ! -f "$HARNESS" ]; then
-    echo "[init] Creating runtime/harness-state.json"
-    cat > "$HARNESS" <<'HARNEOF'
+if [ ! -f "$MEM_STATE" ]; then
+    echo "[init] Creating runtime/memory-state.json (sendReport=true so the report is delivered to the operator)"
+    cat > "$MEM_STATE" <<'MEMEOF'
 {
   "memoryReconciler": {
     "reporting": {
-      "sendReport": false,
+      "sendReport": true,
       "delivery": {
         "channel": "last",
         "to": null
@@ -107,24 +107,24 @@ if [ ! -f "$HARNESS" ]; then
     }
   }
 }
-HARNEOF
-elif ! python3 -c "import json,sys; d=json.load(open('$HARNESS')); sys.exit(0 if 'memoryReconciler' in d else 1)" 2>/dev/null; then
-    echo "[init] Merging memoryReconciler namespace into existing harness-state.json"
+MEMEOF
+elif ! python3 -c "import json,sys; d=json.load(open('$MEM_STATE')); sys.exit(0 if 'memoryReconciler' in d else 1)" 2>/dev/null; then
+    echo "[init] Merging memoryReconciler namespace into existing memory-state.json (sendReport=true by default)"
     python3 -c "
 import json, sys
-with open('$HARNESS', 'r') as f:
+with open('$MEM_STATE', 'r') as f:
     d = json.load(f)
 d['memoryReconciler'] = {
     'reporting': {
-        'sendReport': False,
+        'sendReport': True,
         'delivery': {'channel': 'last', 'to': None}
     }
 }
-with open('$HARNESS', 'w') as f:
+with open('$MEM_STATE', 'w') as f:
     json.dump(d, f, indent=2)
 "
 else
-    echo "[init] harness-state.json already contains memoryReconciler namespace — skipping"
+    echo "[init] memory-state.json already contains memoryReconciler namespace — skipping"
 fi
 
 # ── Done ────────────────────────────────────────────────────────────
