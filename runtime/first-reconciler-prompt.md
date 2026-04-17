@@ -4,14 +4,10 @@ First reconciliation job, fired once immediately after install. Runs the same in
 
 ---
 
-## Execution Guardrails
+## Execution Guidlines
 
-### Run Directly, No Delegation
-
-- **Execute this workflow directly in the current session.**
+- **Execute this workflow directly in the current isolated/cron session.**
 - **Do NOT spawn a sub-agent** to perform any step of this job.
-- **Do NOT delegate** source discovery, wiki ingest, compile, lint, telemetry append, or reporting to a sub-agent.
-- Sub-agent delegation breaks the isolation guarantees of the current session and can fan out unintended side effects. This job must run end-to-end in the current context.
 
 ### Verify Memory-Wiki Configuration Before Proceeding
 
@@ -147,17 +143,11 @@ Since this runs in the operator's current session, reply inline with a summary �
 
 Populate `⚙️ Wiki Configuration` from the values read in the guardrail verification step.
 
----
-
-## Anti-patterns — Do NOT
-
-- Do NOT spawn a sub-agent or delegate any step — run this workflow directly
-- Do NOT create runtime files, directories, or cron jobs from this prompt — setup is owned by `INSTALL.md`
-- Do NOT run `openclaw wiki init`, `openclaw cron add`, `openclaw config set`, or any other setup command — setup is owned by `INSTALL.md` / `install.sh`
-- Do NOT merge or initialize the `memoryReconciler` namespace in `memory-state.json` — that is done during install
-- Do NOT run `wiki apply` or `wiki_apply`
-- Do NOT modify any of the four source files (MEMORY.md, LTMEMORY.md, PROCEDURES.md, episodes)
-- Do NOT create MEMORY.md, LTMEMORY.md, PROCEDURES.md, or episode files
-- Do NOT consolidate, score, or gate entries
-- Do NOT assume hardcoded paths — resolve SKILL_ROOT, WORKSPACE_ROOT, TELEMETRY_ROOT dynamically
-- Do NOT skip telemetry
+## Safety Rules
+- Never delete files and directories MEMORY.md, LTMEMORY.md, PROCEDURES.md, memory/, memory/episodes/ and memory/episodes/*.md 
+- Never ingest raw daily notes (`memory/YYYY-MM-DD.md`)
+- Never ingest dream reports (`DREAMS.md`)
+- Never mutate source files — ingestion is read-only
+- Never run wiki apply or `wiki_apply`
+- Never consolidate score or gate entries
+- Never create source files

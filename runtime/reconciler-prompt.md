@@ -4,14 +4,10 @@ Recurring reconciliation job. Fired by cron 2x weekly (Wednesday 23:00, Sunday 2
 
 ---
 
-## Execution Guardrails
-
-### Run Directly, No Delegation
+## Execution Guidlines
 
 - **Execute this workflow directly in the current isolated cron/session context.**
 - **Do NOT spawn a sub-agent** to perform Memory Reconciler work.
-- **Do NOT delegate** any step — source discovery, wiki ingest, compile, lint, file writes, telemetry append, or reporting — to a sub-agent.
-- Sub-agent delegation breaks the isolation guarantees of the cron session and can fan out unintended side effects.
 
 ### Verify Memory-Wiki Configuration Before Proceeding
 
@@ -50,17 +46,6 @@ This package ingests **only** these four source types:
 | Reflective long-horizon memory | `$WORKSPACE_ROOT/LTMEMORY.md` | Reflections |
 | Procedural memory | `$WORKSPACE_ROOT/PROCEDURES.md` | Reflections |
 | Episodic narratives | `$WORKSPACE_ROOT/memory/episodes/*.md` | Reflections |
-
----
-
-## Non-Goals
-
-- Do **not** ingest raw daily notes (`memory/YYYY-MM-DD.md`)
-- Do **not** ingest dream reports (`DREAMS.md`)
-- Do **not** mutate source files — ingestion is read-only
-- Do **not** call `wiki apply` or `wiki_apply`
-- Do **not** consolidate, score, or gate entries
-- Do **not** create source files
 
 ---
 
@@ -262,20 +247,11 @@ If `sendReport` is `true`, proceed to Step 5.
 💬 {Give short insight about the error}
 ```
 
----
-
-## Anti-patterns — Do NOT
-
-- Do NOT spawn a sub-agent or delegate any step — run this workflow directly
-- Do NOT create runtime files, directories, or cron jobs from this prompt — setup is owned by `INSTALL.md`
-- Do NOT run `openclaw wiki init`, `openclaw cron add`, `openclaw config set`, or any other setup command — setup is owned by `INSTALL.md` / `install.sh`
-- Do NOT merge or initialize the `memoryReconciler` namespace in `memory-state.json` — that is done during install
-- Do NOT run `wiki apply` or `wiki_apply`
-- Do NOT modify any of the four source files
-- Do NOT create MEMORY.md, LTMEMORY.md, PROCEDURES.md, or episode files
-- Do NOT consolidate, score, or gate entries
-- Do NOT assume hardcoded paths
-- Do NOT skip telemetry regardless of notification gate
-- Do NOT fail the run because memory-state.json is missing or malformed (treat missing/malformed as `sendReport: false` per Step 3)
-
-Note: Step 4 (Sync cron delivery mode) edits the existing cron's delivery mode — that is runtime drift prevention, not setup. Creating a new cron job from this prompt is forbidden.
+## Safety Rules
+- Never delete files and directories MEMORY.md, LTMEMORY.md, PROCEDURES.md, memory/, memory/episodes/ and memory/episodes/*.md 
+- Never ingest raw daily notes (`memory/YYYY-MM-DD.md`)
+- Never ingest dream reports (`DREAMS.md`)
+- Never mutate source files — ingestion is read-only
+- Never run wiki apply or `wiki_apply`
+- Never consolidate score or gate entries
+- Never create source files
