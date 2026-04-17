@@ -4,12 +4,39 @@ Run this ONCE immediately after installing memory-reconciler. This prompt sets u
 
 ---
 
-## Execution Guardrails — Run Directly, No Delegation
+## Execution Guardrails
+
+### Run Directly, No Delegation
 
 - **Execute this bootstrap workflow directly in the current session.**
 - **Do NOT spawn a sub-agent** to perform any Memory Reconciler setup or first-run step.
 - **Do NOT delegate** config application, runtime file creation, namespace merging, cron creation, wiki init, the first reconciliation run, telemetry append, or reporting to a sub-agent.
-- Sub-agent delegation breaks the isolation guarantees of the current setup context and can fan out unintended side effects. This job must run end-to-end in the current context.
+- Sub-agent delegation breaks the isolation guarantees of the current setup context and can fan out unintended side effects.
+
+### Verify Memory-Wiki Configuration Before Proceeding
+
+Before running any step below, verify that memory-wiki is configured for isolated vault mode by reading the current plugin config from `openclaw.json`:
+
+```bash
+openclaw config get plugins.entries.memory-wiki.config --json
+```
+
+Expected values (must match `$SKILL_ROOT/references/config-template.md`):
+
+| Field | Expected |
+|-------|----------|
+| `vaultMode` | `"isolated"` |
+| `bridge.enabled` | `false` |
+| `ingest.allowUrlIngest` | `false` |
+| `ingest.autoCompile` | `false` |
+| `ingest.maxConcurrentJobs` | `1` |
+| `search.backend` | `"local"` |
+| `search.corpus` | `"wiki"` |
+| `render.createBacklinks` | `true` |
+| `render.createDashboards` | `true` |
+| `render.preserveHumanBlocks` | `true` |
+
+If any value does not match, **STOP and inform the operator**. Config application is owned by `INSTALL.md` / `install.sh` — this prompt only verifies. Do not proceed with a misconfigured wiki; ingesting into a non-isolated or bridged vault could leak curated memory outside the intended boundary.
 
 ---
 
@@ -45,46 +72,7 @@ Do not continue without a working memory-wiki installation.
 
 ---
 
-## Step 2: Apply isolated vault mode settings
-
-Apply the isolated vault configuration through OpenClaw's plugin config system. Use the exact values from `$SKILL_ROOT/references/config-template.md`:
-
-```bash
-openclaw config set plugins.entries.memory-wiki.config.vaultMode '"isolated"' --strict-json
-openclaw config set plugins.entries.memory-wiki.config.bridge.enabled 'false' --strict-json
-openclaw config set plugins.entries.memory-wiki.config.ingest.allowUrlIngest 'false' --strict-json
-openclaw config set plugins.entries.memory-wiki.config.ingest.autoCompile 'false' --strict-json
-openclaw config set plugins.entries.memory-wiki.config.ingest.maxConcurrentJobs '1' --strict-json
-openclaw config set plugins.entries.memory-wiki.config.search.backend '"local"' --strict-json
-openclaw config set plugins.entries.memory-wiki.config.search.corpus '"wiki"' --strict-json
-openclaw config set plugins.entries.memory-wiki.config.render.createBacklinks 'true' --strict-json
-openclaw config set plugins.entries.memory-wiki.config.render.createDashboards 'true' --strict-json
-openclaw config set plugins.entries.memory-wiki.config.render.preserveHumanBlocks 'true' --strict-json
-```
-
-### Verify applied config
-
-```bash
-openclaw config get plugins.entries.memory-wiki.config --json
-```
-
-Compare the output against `$SKILL_ROOT/references/config-template.md`. All fields must match:
-- `vaultMode` = `"isolated"`
-- `bridge.enabled` = `false`
-- `ingest.allowUrlIngest` = `false`
-- `ingest.autoCompile` = `false`
-- `ingest.maxConcurrentJobs` = `1`
-- `search.backend` = `"local"`
-- `search.corpus` = `"wiki"`
-- `render.createBacklinks` = `true`
-- `render.createDashboards` = `true`
-- `render.preserveHumanBlocks` = `true`
-
-If any field does not match, re-apply and verify again.
-
----
-
-## Step 3: Initialize runtime metadata
+## Step 2: Initialize runtime metadata
 
 Create `$WORKSPACE_ROOT/runtime/memory-reconciler-metadata.json` if it does not exist:
 
@@ -107,7 +95,7 @@ If the file already exists, skip — do not overwrite.
 
 ---
 
-## Step 4: Merge memoryReconciler namespace into memory-state.json
+## Step 3: Merge memoryReconciler namespace into memory-state.json
 
 Read `$WORKSPACE_ROOT/runtime/memory-state.json`.
 
@@ -151,7 +139,7 @@ with open(state_path, 'w') as f:
 
 ---
 
-## Step 5: Verify four-source seam
+## Step 4: Verify four-source seam
 
 Check the existence of each source in the workspace:
 
@@ -166,7 +154,7 @@ Report which sources are present. Missing sources are **not errors** — they ma
 
 ---
 
-## Step 6: Create cron job
+## Step 5: Create cron job
 
 Create the recurring cron job. Check for an existing job first (idempotency):
 
@@ -176,24 +164,26 @@ openclaw cron list --json
 
 If a job named `memory-reconciler` already exists, skip creation.
 
-Otherwise, create:
+Otherwise, create a cron job:
 
-```bash
-openclaw cron add \
-  --name "memory-reconciler" \
-  --cron "0 23 * * 3,0" \
-  --tz "<IANA timezone from system>" \
-  --session isolated \
-  --no-deliver \
-  --timeout-seconds 1200 \
-  --message "Run memory reconciliation.\n\nRead <RESOLVED_SKILL_ROOT>/runtime/reconciler-prompt.md and follow every step strictly.\n\nWorking directory: <RESOLVED_WORKSPACE_PATH>"
+```
+name: "memory-reconciler"
+schedule: { kind: "cron", expr: "0 23 * * 3,0", tz: "IANA timezone from system" }
+payload: {
+  kind: "agentTurn",
+  message: "Run memory reconciliation.\n\nRead <RESOLVED_SKILL_ROOT>/runtime/reconciler-prompt.md and follow every step strictly.\n\nWorking directory: <RESOLVED_WORKSPACE_PATH>",
+  timeoutSeconds: 1200,
+  
+}
+sessionTarget: "isolated"
+delivery: { mode: "announce", channel: <last channel the operator used>, to: <the operator specific id of last channel used> }
 ```
 
 Replace `<RESOLVED_SKILL_ROOT>` and `<RESOLVED_WORKSPACE_PATH>` with fully resolved absolute paths. No `~`, no `$HOME`, no placeholders in the created cron payload.
 
 ---
 
-## Step 7: Initialize wiki vault
+## Step 6: Initialize wiki vault
 
 Initialize the memory-wiki vault before the first reconciliation run:
 
@@ -205,7 +195,7 @@ This ensures the wiki storage is ready to accept ingested content.
 
 ---
 
-## Step 8: Run first reconciliation [SCRIPT]
+## Step 7: Run first reconciliation [SCRIPT]
 
 Run the first reconciliation cycle:
 
@@ -223,20 +213,20 @@ Read the JSON output. Record:
 
 ---
 
-## Step 9: Append telemetry [SCRIPT]
+## Step 8: Append telemetry [SCRIPT]
 
 ```bash
 python3 $SCRIPTS_DIR/append_memory_log.py \
   --telemetry-dir $TELEMETRY_ROOT \
-  --status <status from step 8> \
+  --status <status from step 7> \
   --event <run_completed or run_skipped or run_failed> \
   --mode first-reconciliation \
-  --details-json '<JSON summary from step 8>'
+  --details-json '<JSON summary from step 7>'
 ```
 
 ---
 
-## Step 10: Report results
+## Step 9: Report results
 
 Compose and reply with a summary:
 
@@ -266,6 +256,8 @@ Compose and reply with a summary:
     • memory-reconciler scheduled at Wednesday 23:00, Sunday 23:00
     • Memory reconciliation will run automatically on schedule.
 ```
+
+Populate `⚙️ Wiki Configuration` from the values read in the guardrail verification step.
 
 ---
 

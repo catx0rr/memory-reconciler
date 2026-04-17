@@ -191,8 +191,8 @@ def update_metadata(metadata_path: str, run_result: dict) -> None:
         'sourcesFound': run_result.get('sources_found', []),
         'sourcesIngested': run_result.get('sources_ingested', 0),
         'episodesIngested': run_result.get('episodes_ingested', 0),
-        'compileStatus': run_result.get('compile', {}).get('status'),
-        'lintStatus': run_result.get('lint', {}).get('status'),
+        'compileStatus': (run_result.get('compile') or {}).get('status'),
+        'lintStatus': (run_result.get('lint') or {}).get('status'),
         'lastError': run_result.get('error'),
     }
 
